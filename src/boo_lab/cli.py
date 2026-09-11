@@ -121,6 +121,9 @@ def main(argv: list[str] | None = None) -> int:
         n = 0
         with out.open("w", encoding="utf-8") as f:
             for r in rows:
+                if (r.get("match") or "").lower() not in {"yes", "y", "1", "true"}:
+                    print("SKIP extract", r.get("track"), "match!=yes")
+                    continue
                 gp = r.get("gp_path")
                 if not gp or not Path(gp).exists():
                     print("SKIP extract", r.get("track"), "no gp")
