@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 from .catalogue import FIELDS, filter_album, load_map, resolve, save_map, scan_roots
-from .gate import lock_score, pass_gate, write_report
+from .gate import write_report
 
 
 def root() -> Path:
