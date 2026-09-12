@@ -1,43 +1,31 @@
 # boo-lab
 
-Local lab: play your FLACs, pin Riff / Hook / Breakdown / Solo, pull riffs from Guitar Pro you already own. Feeds God Tier Metal. Not a writer. Nothing leaves this PC.
+Local lab: play Born of Osiris FLACs, mark Riff / Hook / Breakdown / Pulse, pull notes from GP5 you already own. Feeds God Tier Metal. Nothing leaves this PC.
+
+Read `STATUS.md` before changing behaviour. Read `LAW.md` before adding features.
 
 ## Windows
 
-1. Clone this repo.
-2. Double-click `START.bat`.
-3. First run opens `.env` — set:
-
 ```
-BOO_FLAC_ROOT=C:\path\to\your\flacs
-BOO_GP_ROOT=C:\path\to\your\gp
+set BOO_FLAC_ROOT=C:\Users\RIGGUSPIG\Desktop\god-tier-metal\reference\audio-corpus\born_of_osiris
+set BOO_GP_ROOT=C:\Users\RIGGUSPIG\Desktop\god-tier-metal\reference\gp-tabs
+Desktop\god-tier-metal\tools\boo-lab\.venv\Scripts\activate
+boo-lab studio --port 8765
 ```
 
-4. Save. Run `START.bat` again. Browser opens http://127.0.0.1:8765
-
-Optional Guess button: `INSTALL-GUESS.bat` (allin1, heavy).
+Or `SETUP-STUDIO.bat` / `START.bat`. Ctrl+F5 after every HTML change. Kill the old server first.
 
 ## Keys
 
-Space play. 1 riff. 2 hook. 3 breakdown. 4 solo. G guess. S save. N next. Click the wave to seek.
+Space play. Pin buttons add an 8s box at the playhead. S save. N next green. Slider seeks.
 
-Green dots in the list = file found. Pins fill the song until the next pin.
+Green = GP5. Gold = partial tab. Grey = no tab.
 
 ## After an album
 
 ```
-.venv\Scripts\activate
 boo-lab extract --album "The Discovery"
 boo-lab export-bank --out ..\god-tier-metal\engine\data\riff_bank.json
 ```
 
-Copy any existing bank first. Do not train models. Do not add FLACs or GP files to git.
-
-## Layout
-
-```
-data/map.csv         drafted by scan
-data/sections.jsonl  your pins
-data/riffs.jsonl     extract
-.env                 your disk paths (gitignored)
-```
+Do not add FLACs or GP files to git.
