@@ -3,10 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
 
 from .catalogue import load_map, resolve
 
@@ -30,20 +29,74 @@ def create_app(lab_root: Path, flac_root: Path | None, gp_root: Path | None) -> 
     map_path = lab_root / "data" / "map.csv"
     sec_path = lab_root / "data" / "sections.jsonl"
 
+    def _norm_name(s: str) -> str:
+        import re
+        s = (s or "").lower().replace("∆", "a").replace("Δ", "a")
+        s = re.sub(r"^\d+\s*[-_.]\s*", "", s)
+        return re.sub(r"[^a-z0-9]+", "", s)
+
+    def _gp5_index() -> dict[str, Path]:
+        idx: dict[str, Path] = {}
+        root = Path(r"C:\Users\RIGGUSPIG\Desktop\god-tier-metal\reference\gp-tabs\gp5")
+        if not root.exists():
+            return idx
+        try:
+            for p in root.rglob("*.gp5"):
+                idx[_norm_name(p.stem)] = p
+        except Exception:
+            return idx
+        return idx
+
     def tracks():
         if not map_path.exists():
             return []
-        rows = [resolve(r, flac_root, gp_root) for r in load_map(map_path)]
+        try:
+            rows = [resolve(r, flac_root, gp_root) for r in load_map(map_path)]
+        except Exception:
+            return []
+        idx = _gp5_index()
         out = []
         for i, r in enumerate(rows):
+            key = _norm_name(r.get("track") or "")
+            gp5 = idx.get(key)
+            if not gp5 and key:
+                for k, p in idx.items():
+                    if key in k or k in key:
+                        gp5 = p
+                        break
+            notes = (r.get("notes") or "").lower()
+            partial = False
+            if gp5:
+                name = gp5.name.lower()
+                try:
+                    sz = gp5.stat().st_size
+                except Exception:
+                    sz = 0
+                partial = (
+                    sz < 22000
+                    or "stub" in notes
+                    or "fragment" in notes
+                    or "partial" in notes
+                    or ("bass" in name and "guitar" not in name)
+                )
+            flac_ok = False
+            fp = r.get("flac_path") or r.get("flac")
+            if fp:
+                try:
+                    flac_ok = Path(fp).exists()
+                except Exception:
+                    flac_ok = False
             out.append(
                 {
                     "id": i,
                     "album": r.get("album"),
                     "track": r.get("track"),
                     "tuning": r.get("tuning"),
-                    "has_flac": bool(r.get("flac_path") and Path(r["flac_path"]).exists()),
-                    "has_gp": bool(r.get("gp_path") and Path(r["gp_path"]).exists()),
+                    "has_flac": flac_ok,
+                    "has_gp": bool(gp5),
+                    "gp_partial": partial,
+                    "gp_name": gp5.name if gp5 else "",
+                    "gp_kind": (gp5.suffix.lower().lstrip(".") if gp5 else ""),
                 }
             )
         return out
@@ -71,30 +124,15 @@ def create_app(lab_root: Path, flac_root: Path | None, gp_root: Path | None) -> 
         rows = [resolve(r, flac_root, gp_root) for r in load_map(map_path)]
         if track_id < 0 or track_id >= len(rows):
             raise HTTPException(404)
-        path = rows[track_id].get("flac_path")
-        if not path or not Path(path).exists():
-            raise HTTPException(404, "flac missing")
-        try:
-            from .structure import run_allin1, segments_from_allin1
-        except Exception as e:
-            raise HTTPException(501, f"structure helpers missing: {e}")
-        try:
-            payload = run_allin1(Path(path))
-        except Exception as e:
-            raise HTTPException(501, f"allin1 failed (pip install allin1): {e}")
-        segs = segments_from_allin1(payload)
-        return {
-            "bpm": payload.get("bpm"),
-            "sections": [
-                {
-                    "role": s.get("role") or s.get("label") or "verse",
-                    "start": s["start"],
-                    "end": s["end"],
-                    "source": "allin1",
-                }
-                for s in segs
-            ],
-        }
+        flac = rows[track_id].get("flac_path")
+        gp = rows[track_id].get("gp_path")
+        from .guess import estimate_hybrid
+        payload = estimate_hybrid(
+            Path(flac) if flac else None,
+            Path(gp) if gp else None,
+            track=rows[track_id].get("track") or "",
+        )
+        return payload
 
     @app.get("/api/sections/{track_id}")
     def api_get_sections(track_id: int):
@@ -109,12 +147,19 @@ def create_app(lab_root: Path, flac_root: Path | None, gp_root: Path | None) -> 
                     found.append(rec)
         return found
 
-    class SaveBody(BaseModel):
-        sections: list[dict]
-
     @app.post("/api/sections/{track_id}")
-    def api_save(track_id: int, body: SaveBody):
-        meta = tracks()[track_id]
+    async def api_save(track_id: int, request: Request):
+        rows = tracks()
+        if track_id < 0 or track_id >= len(rows):
+            return JSONResponse({"detail": "bad track id", "saved": 0}, status_code=400)
+        meta = rows[track_id]
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"detail": "body not json", "saved": 0}, status_code=400)
+        sections = body.get("sections") if isinstance(body, dict) else body
+        if not isinstance(sections, list):
+            return JSONResponse({"detail": "need sections list", "saved": 0}, status_code=400)
         old = []
         if sec_path.exists():
             for line in sec_path.read_text(encoding="utf-8").splitlines():
@@ -125,13 +170,20 @@ def create_app(lab_root: Path, flac_root: Path | None, gp_root: Path | None) -> 
                     continue
                 old.append(rec)
         new = []
-        for s in body.sections:
+        for s in sections:
+            try:
+                start = float(s.get("start"))
+                end = float(s.get("end"))
+            except Exception:
+                continue
+            if end <= start:
+                end = start + 0.25
             new.append(
                 {
                     "album": meta["album"],
                     "track": meta["track"],
-                    "start": float(s["start"]),
-                    "end": float(s["end"]),
+                    "start": start,
+                    "end": end,
                     "role": s.get("role") or "verse",
                     "source": "human",
                 }
@@ -140,6 +192,6 @@ def create_app(lab_root: Path, flac_root: Path | None, gp_root: Path | None) -> 
         with sec_path.open("w", encoding="utf-8") as f:
             for rec in old + new:
                 f.write(json.dumps(rec) + "\n")
-        return {"saved": len(new)}
+        return {"saved": len(new), "path": str(sec_path)}
 
     return app

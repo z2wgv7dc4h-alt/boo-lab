@@ -11,7 +11,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-guess = ["allin1"]
+guess = ["allin1", "madmom", "numpy"]
 stems = ["demucs"]
 dev = ["pytest"]
 

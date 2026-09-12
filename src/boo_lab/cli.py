@@ -163,7 +163,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd in {"annotate", "studio"}:
-        import os
         from .annotator import create_app
 
         app = create_app(root(), flac_root, gp_root)
