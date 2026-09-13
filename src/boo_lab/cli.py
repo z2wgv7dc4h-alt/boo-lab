@@ -46,18 +46,17 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--port", type=int, default=8765)
 
     args = p.parse_args(argv)
-    flac_root = Path(os.environ.get("BOO_FLAC_ROOT", "")) if os.environ.get("BOO_FLAC_ROOT") else None
-    gp_root = Path(os.environ.get("BOO_GP_ROOT", "")) if os.environ.get("BOO_GP_ROOT") else None
-    map_path = data_dir() / "map.csv"
-
     env_file = root() / ".env"
     if env_file.exists():
         for line in env_file.read_text(encoding="utf-8").splitlines():
             if "=" in line and not line.strip().startswith("#"):
                 k, v = line.split("=", 1)
                 os.environ.setdefault(k.strip(), v.strip().strip('"'))
-        flac_root = Path(os.environ["BOO_FLAC_ROOT"]) if os.environ.get("BOO_FLAC_ROOT") else flac_root
-        gp_root = Path(os.environ["BOO_GP_ROOT"]) if os.environ.get("BOO_GP_ROOT") else gp_root
+    flac_val = os.environ.get("BOO_FLAC_ROOT") or ""
+    gp_val = os.environ.get("BOO_GP_ROOT") or ""
+    flac_root = Path(flac_val) if flac_val else None
+    gp_root = Path(gp_val) if gp_val else None
+    map_path = data_dir() / "map.csv"
 
     if args.cmd == "scan":
         drafted = scan_roots(flac_root, gp_root)
