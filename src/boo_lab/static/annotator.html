@@ -16,6 +16,10 @@
     .app > aside { background:var(--panel); border-right:1px solid var(--line); height:100vh; overflow-y:scroll; overflow-x:hidden; }
     .app > aside h1 { margin:0; padding:18px 16px 8px; font-size:15px; letter-spacing:.12em; text-transform:uppercase; color:var(--mute); }
     .app > aside p { margin:0 16px 8px; color:var(--mute); font-size:12px; }
+    .filters { display:flex; gap:6px; padding:0 16px 10px; flex-wrap:wrap; }
+    .filters button { padding:4px 8px; font-size:12px; }
+    .filters button.on { border-color:var(--riff); color:var(--riff); }
+    #q { width:calc(100% - 32px); margin:0 16px 8px; padding:6px 8px; background:#111; color:var(--text); border:1px solid var(--line); }
     .t { padding:10px 16px; cursor:pointer; border-left:3px solid transparent; }
     .t:hover,.t.on { background:#1d1d20; }
     .t.on { border-left-color:var(--break); }
@@ -92,7 +96,13 @@
 <div class="app">
   <aside>
     <h1>boo-lab</h1>
-    <p>Green GP5 · gold partial · grey none. Click mix to seek.</p>
+    <p>Green GP5 · gold partial · grey none.</p>
+    <input id="q" placeholder="filter songs" />
+    <div class="filters">
+      <button type="button" data-f="all" class="on">All</button>
+      <button type="button" data-f="gp">GP5</button>
+      <button type="button" data-f="none">No tab</button>
+    </div>
     <div id="list"></div>
   </aside>
   <main>
@@ -142,7 +152,7 @@
 const ROLES = ["intro","build","verse","chorus","breakdown","solo","chill","pulse","outro"];
 const COLOR = { verse:"rgba(196,163,90,0.45)", chorus:"rgba(110,168,214,0.45)", breakdown:"rgba(196,92,74,0.45)", solo:"rgba(125,186,122,0.45)", intro:"rgba(138,122,154,0.45)", build:"rgba(212,162,122,0.45)", chill:"rgba(106,158,154,0.45)", pulse:"rgba(176,122,212,0.45)", outro:"rgba(136,136,136,0.45)" };
 const LABEL = { verse:"Riff", chorus:"Hook", breakdown:"Breakdown", solo:"Solo", intro:"Intro", build:"Build", chill:"Chill", pulse:"Pulse", outro:"Outro" };
-let tracks=[], trackId=0, regs=[], sel=-1, undo=[];
+let tracks=[], trackId=0, regs=[], sel=-1, undo=[], listFilter="all", listQ="";
 let ws=null, drumsWs=null, regionsPlug=null, lock=false, tabApi=null;
 
 function fmt(t){ t=Math.max(0,+t||0); return Math.floor(t/60)+":"+String(Math.floor(t%60)).padStart(2,"0"); }
@@ -225,6 +235,7 @@ function makeWave(url){
   ws.on("play",()=>document.getElementById("btnPlay").textContent="Pause");
   ws.on("pause",()=>document.getElementById("btnPlay").textContent="Play");
   regionsPlug.on("region-updated",()=>{ if(lock) return; pullRegions(); });
+  document.getElementById("wave").addEventListener("pointerup",()=>{ if(!lock){ pullRegions(); table(); }});
   regionsPlug.on("region-clicked",(reg, ev)=>{
     ev.stopPropagation();
     const i=parseInt(String(reg.id).replace("r",""),10);
@@ -292,7 +303,12 @@ fetch("/api/tracks").then(r=>r.json()).then(d=>{
 
 function renderList(){
   const box=document.getElementById("list"); box.innerHTML="";
+  const q=(listQ||"").toLowerCase();
   tracks.forEach((t,i)=>{
+    if(listFilter==="gp" && !t.has_gp) return;
+    if(listFilter==="none" && t.has_gp) return;
+    const hay=((t.track||"")+" "+(t.album||"")).toLowerCase();
+    if(q && hay.indexOf(q)<0) return;
     const d=document.createElement("div");
     d.className="t"+(i===trackId?" on":"");
     const gpClass=t.gp_partial?"part":(t.has_gp?"ok":"");
@@ -302,6 +318,14 @@ function renderList(){
     d.onclick=()=>select(i); box.appendChild(d);
   });
 }
+document.getElementById("q").oninput=e=>{ listQ=e.target.value; renderList(); };
+document.querySelectorAll(".filters button").forEach(b=>{
+  b.onclick=()=>{
+    listFilter=b.dataset.f;
+    document.querySelectorAll(".filters button").forEach(x=>x.classList.toggle("on", x===b));
+    renderList();
+  };
+});
 
 function select(i){
   trackId=i; const t=tracks[i];
@@ -371,7 +395,8 @@ function dump(){
   a.click();
 }
 function estimate(){
-  if(regs.length && !confirm("Replace current boxes with Guess?")) return;
+  const merge = regs.length>0;
+  if(merge && !confirm("Add Guess drafts next to your boxes? Cancel = leave yours only.")) return;
   const btn=document.getElementById("btnEst");
   btn.disabled=true;
   showErr("Guess running — first time Demucs can take a few minutes. Leave this tab open.");
@@ -379,7 +404,10 @@ function estimate(){
     const txt=await r.text();
     let x; try{ x=JSON.parse(txt); }catch(e){ throw txt.slice(0,200); }
     if(!r.ok) throw (typeof x.detail==="string"?x.detail:JSON.stringify(x.detail||x)).slice(0,240);
-    snap(); regs=(x.sections||[]).map(s=>({role:s.role||"verse",start:+s.start,end:+s.end})); sel=regs.length?0:-1;
+    snap();
+    const draft=(x.sections||[]).map(s=>({role:s.role||"verse",start:+s.start,end:+s.end}));
+    if(merge) regs=regs.concat(draft); else regs=draft;
+    sel=regs.length?0:-1;
     table(); paintRegions();
     loadDrums(tracks[trackId].id);
     document.getElementById("sub").textContent=(x.sections||[]).length+" guessed";
