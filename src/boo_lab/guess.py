@@ -210,7 +210,7 @@ def _half_time_spans(beats: list[float], min_len: float = 6.0) -> list[dict]:
                     "role": "breakdown",
                     "start": round(start, 3),
                     "end": round(end, 3),
-                    "source": "madmom-halftime",
+                    "source": "halftime",
                 }
             )
         i = j
@@ -229,4 +229,20 @@ def _clean(sections: list[dict]) -> list[dict]:
             continue
         keep.append({**s, "start": start, "end": end})
     keep.sort(key=lambda x: (x["start"], x["end"]))
-    return keep
+    out = []
+    for s in keep:
+        drop = False
+        for o in out:
+            if s.get("role") != o.get("role"):
+                continue
+            a, b = max(s["start"], o["start"]), min(s["end"], o["end"])
+            overlap = max(0.0, b - a)
+            span = min(s["end"] - s["start"], o["end"] - o["start"])
+            if span > 0 and overlap / span > 0.7:
+                o["start"] = min(o["start"], s["start"])
+                o["end"] = max(o["end"], s["end"])
+                drop = True
+                break
+        if not drop:
+            out.append(s)
+    return out

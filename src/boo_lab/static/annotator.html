@@ -230,12 +230,15 @@ function makeWave(url){
   });
   ws.on("timeupdate", t=>{
     document.getElementById("clock").textContent=fmt(t)+" / "+fmt(ws.getDuration()||0);
-    if(drumsWs) try{ drumsWs.setTime(t); }catch(e){}
+    if(drumsWs && ws.isPlaying()) try{ drumsWs.setTime(t); }catch(e){}
   });
   ws.on("play",()=>document.getElementById("btnPlay").textContent="Pause");
   ws.on("pause",()=>document.getElementById("btnPlay").textContent="Play");
   regionsPlug.on("region-updated",()=>{ if(lock) return; pullRegions(); });
-  document.getElementById("wave").addEventListener("pointerup",()=>{ if(!lock){ pullRegions(); table(); }});
+  if(!window._booWaveUp){
+    window._booWaveUp=true;
+    document.getElementById("wave").addEventListener("pointerup",()=>{ if(!lock){ pullRegions(); table(); }});
+  }
   regionsPlug.on("region-clicked",(reg, ev)=>{
     ev.stopPropagation();
     const i=parseInt(String(reg.id).replace("r",""),10);
@@ -406,7 +409,12 @@ function estimate(){
     if(!r.ok) throw (typeof x.detail==="string"?x.detail:JSON.stringify(x.detail||x)).slice(0,240);
     snap();
     const draft=(x.sections||[]).map(s=>({role:s.role||"verse",start:+s.start,end:+s.end}));
-    if(merge) regs=regs.concat(draft); else regs=draft;
+    if(merge){
+      draft.forEach(d=>{
+        const hit=regs.some(p=>p.role===d.role && Math.min(p.end,d.end)-Math.max(p.start,d.start) > 0.7*Math.min(p.end-p.start,d.end-d.start));
+        if(!hit) regs.push(d);
+      });
+    } else regs=draft;
     sel=regs.length?0:-1;
     table(); paintRegions();
     loadDrums(tracks[trackId].id);
