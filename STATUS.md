@@ -56,7 +56,7 @@ SETUP-STUDIO.bat can fight pip (setuptools 84 vs madmom). Prefer the commands ab
 2. Demucs drums stem on first Guess (`work/stems/`, cached)
 3. librosa half-time on that stem → Breakdown drafts
 
-`INSTALL-STEMS.bat` once. Waveform is wavesurfer.js 7. No madmom.
+`INSTALL-STEMS.bat` once. Mix + drums lanes. AlphaTab under the wave (GP5 and GP7). Kick IOI drafts slams. Learner waits for 20 human boxes.
 
 ## ML later
 

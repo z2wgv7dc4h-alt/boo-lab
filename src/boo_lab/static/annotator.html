@@ -5,6 +5,7 @@
   <title>boo-lab</title>
   <script src="https://unpkg.com/wavesurfer.js@7.8.16/dist/wavesurfer.min.js"></script>
   <script src="https://unpkg.com/wavesurfer.js@7.8.16/dist/plugins/regions.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@coderline/alphatab@1.3.1/dist/alphaTab.min.js"></script>
   <style>
     :root { --bg:#0c0c0d; --panel:#161618; --line:#2a2a2e; --text:#e8e6e3; --mute:#8a8680;
       --riff:#c4a35a; --hook:#6ea8d6; --break:#c45c4a; --solo:#7dba7a; --intro:#8a7a9a; }
@@ -26,7 +27,10 @@
     header.now { display:flex; justify-content:space-between; align-items:baseline; gap:12px; }
     header.now h2 { margin:0; font-size:22px; font-weight:600; }
     header.now span { color:var(--mute); font-size:13px; }
-    #wave { width:100%; height:128px; background:#101012; border:1px solid var(--line); margin:18px 0 12px; }
+    .lane-lab { color:var(--mute); font-size:11px; letter-spacing:.08em; text-transform:uppercase; margin:10px 0 4px; }
+    #wave, #drums { width:100%; height:96px; background:#101012; border:1px solid var(--line); }
+    #tabwrap { margin:14px 0 8px; background:#101012; border:1px solid var(--line); min-height:120px; overflow:auto; max-height:280px; }
+    #tabwrap .empty { color:var(--mute); padding:16px; font-size:13px; }
     .transport, .pins { display:flex; align-items:center; gap:8px; margin:8px 0 12px; flex-wrap:wrap; }
     button { background:#222226; color:var(--text); border:1px solid var(--line); padding:8px 14px; font:inherit; cursor:pointer; }
     button:hover { border-color:#555; }
@@ -93,7 +97,12 @@
       <h2 id="title">…</h2>
       <span id="sub"></span>
     </header>
+    <div class="lane-lab">mix</div>
     <div id="wave"></div>
+    <div class="lane-lab">drums (after first Guess)</div>
+    <div id="drums"></div>
+    <div class="lane-lab">tab (GP5 or GP7 via AlphaTab)</div>
+    <div id="tabwrap"><div class="empty" id="tabmsg">loading tab…</div></div>
     <div class="transport">
       <button type="button" id="btnPlay">Play</button>
       <span class="time" id="clock">0:00 / 0:00</span>
@@ -129,7 +138,7 @@ const ROLES = ["intro","build","verse","chorus","breakdown","solo","chill","puls
 const COLOR = { verse:"rgba(196,163,90,0.45)", chorus:"rgba(110,168,214,0.45)", breakdown:"rgba(196,92,74,0.45)", solo:"rgba(125,186,122,0.45)", intro:"rgba(138,122,154,0.45)", build:"rgba(212,162,122,0.45)", chill:"rgba(106,158,154,0.45)", pulse:"rgba(176,122,212,0.45)", outro:"rgba(136,136,136,0.45)" };
 const LABEL = { verse:"Riff", chorus:"Hook", breakdown:"Breakdown", solo:"Solo", intro:"Intro", build:"Build", chill:"Chill", pulse:"Pulse", outro:"Outro" };
 let tracks=[], trackId=0, regs=[], sel=-1, undo=[];
-let ws=null, regionsPlug=null, lock=false;
+let ws=null, drumsWs=null, regionsPlug=null, lock=false, tabApi=null;
 
 function fmt(t){ t=Math.max(0,+t||0); return Math.floor(t/60)+":"+String(Math.floor(t%60)).padStart(2,"0"); }
 function showErr(m){ document.getElementById("err").textContent=m||""; }
@@ -147,6 +156,7 @@ function RegionsApi(){
 
 function destroyWave(){
   if(ws){ try{ ws.destroy(); }catch(e){} ws=null; regionsPlug=null; }
+  if(drumsWs){ try{ drumsWs.destroy(); }catch(e){} drumsWs=null; }
 }
 
 function paintRegions(){
@@ -212,6 +222,54 @@ function makeWave(url){
   });
 }
 
+function loadDrums(id){
+  if(drumsWs){ try{ drumsWs.destroy(); }catch(e){} drumsWs=null; }
+  fetch("/api/drums/"+id, {method:"HEAD"}).then(r=>{
+    if(!r.ok) return;
+    drumsWs=WaveSurfer.create({
+      container:"#drums",
+      url:"/api/drums/"+id,
+      height:96,
+      waveColor:"#5a4a4a",
+      progressColor:"#c45c4a",
+      cursorColor:"#f2f0ec",
+      barWidth:2,
+      barGap:1,
+      dragToSeek:true,
+      normalize:true,
+      interact:true
+    });
+    drumsWs.on("interaction", t=>{ if(ws) ws.setTime(t); });
+  }).catch(()=>{});
+}
+
+function loadTab(id){
+  const box=document.getElementById("tabwrap");
+  box.innerHTML="";
+  const msg=document.createElement("div");
+  msg.className="empty";
+  msg.id="tabmsg";
+  box.appendChild(msg);
+  if(!window.alphaTab){ msg.textContent="AlphaTab failed to load (need internet)"; return; }
+  msg.textContent="rendering tab…";
+  fetch("/api/tab/"+id).then(r=>{
+    if(!r.ok){ msg.textContent="no tab file for AlphaTab"; return; }
+    box.innerHTML="";
+    const host=document.createElement("div");
+    box.appendChild(host);
+    try{
+      if(tabApi && tabApi.destroy) tabApi.destroy();
+    }catch(e){}
+    tabApi=new alphaTab.AlphaTabApi(host, {
+      file: "/api/tab/"+id,
+      core: { fontDirectory: "https://cdn.jsdelivr.net/npm/@coderline/alphatab@1.3.1/dist/font/" },
+      display: { scale: 0.85 },
+      player: { enablePlayer: false }
+    });
+    tabApi.error.on(e=>{ msg.textContent="tab: "+(e&&e.message?e.message:e); });
+  }).catch(()=>{ msg.textContent="no tab file"; });
+}
+
 function toggle(){ if(!ws) return; ws.playPause(); }
 
 fetch("/api/tracks").then(r=>r.json()).then(d=>{
@@ -241,6 +299,8 @@ function select(i){
   document.getElementById("sub").textContent=t.album||"";
   renderList(); showErr(""); regs=[]; sel=-1;
   makeWave("/api/audio/"+t.id);
+  loadDrums(t.id);
+  loadTab(t.id);
   fetch("/api/sections/"+t.id).then(r=>r.json()).then(secs=>{
     const use=secs.filter(s=>s.source==="human").length?secs.filter(s=>s.source==="human"):secs;
     regs=use.map(s=>({role:s.role,start:+s.start,end:+s.end}));
@@ -309,6 +369,7 @@ function estimate(){
     if(!r.ok) throw (typeof x.detail==="string"?x.detail:JSON.stringify(x.detail||x)).slice(0,240);
     snap(); regs=(x.sections||[]).map(s=>({role:s.role||"verse",start:+s.start,end:+s.end})); sel=regs.length?0:-1;
     table(); paintRegions();
+    loadDrums(tracks[trackId].id);
     document.getElementById("sub").textContent=(x.sections||[]).length+" guessed";
     showErr((x.notes||[]).join(" · "));
   }).catch(e=>showErr("guess: "+e));

@@ -119,6 +119,37 @@ def create_app(lab_root: Path, flac_root: Path | None, gp_root: Path | None) -> 
             raise HTTPException(404, "flac missing — set BOO_FLAC_ROOT and map.csv")
         return FileResponse(path, media_type="audio/flac")
 
+    @app.get("/api/tab/{track_id}")
+    def api_tab(track_id: int):
+        rows = [resolve(r, flac_root, gp_root) for r in load_map(map_path)]
+        if track_id < 0 or track_id >= len(rows):
+            raise HTTPException(404)
+        from .guess import _prefer_gp5
+
+        raw = rows[track_id].get("gp_path") or rows[track_id].get("gp") or ""
+        gp5 = _prefer_gp5(Path(raw) if raw else None, rows[track_id].get("track") or "")
+        path = gp5
+        if not path and raw and Path(raw).exists():
+            path = Path(raw)
+        if not path:
+            raise HTTPException(404, "no tab file")
+        return FileResponse(path)
+
+    @app.get("/api/drums/{track_id}")
+    def api_drums(track_id: int):
+        rows = [resolve(r, flac_root, gp_root) for r in load_map(map_path)]
+        if track_id < 0 or track_id >= len(rows):
+            raise HTTPException(404)
+        flac = rows[track_id].get("flac_path")
+        if not flac:
+            raise HTTPException(404)
+        from .stems import find_drums
+
+        p = find_drums(Path(flac), lab_root / "work" / "stems")
+        if not p:
+            raise HTTPException(404, "no drums stem yet — press Guess")
+        return FileResponse(p, media_type="audio/wav")
+
     @app.get("/api/estimate/{track_id}")
     def api_estimate(track_id: int):
         rows = [resolve(r, flac_root, gp_root) for r in load_map(map_path)]
@@ -193,6 +224,12 @@ def create_app(lab_root: Path, flac_root: Path | None, gp_root: Path | None) -> 
         with sec_path.open("w", encoding="utf-8") as f:
             for rec in old + new:
                 f.write(json.dumps(rec) + "\n")
+        try:
+            from .learn import record
+
+            record(lab_root, meta["album"], meta["track"], new)
+        except Exception:
+            pass
         return {"saved": len(new), "path": str(sec_path)}
 
     return app

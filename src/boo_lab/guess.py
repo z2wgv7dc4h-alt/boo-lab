@@ -112,10 +112,22 @@ def estimate_hybrid(
                 notes.append("librosa half-time x%s" % len(ht))
             else:
                 notes.append("librosa beats, no half-time")
+            kicks = _kick_spans(src)
+            if kicks:
+                sections.extend(kicks)
+                notes.append("kick IOI x%s" % len(kicks))
         except ImportError:
             notes.append("pip install librosa soundfile")
         except Exception as e:
             notes.append("librosa: %s" % e)
+
+    if cache:
+        try:
+            from .learn import note as learn_note
+
+            notes.append(learn_note(cache.parent.parent))
+        except Exception:
+            pass
 
     sections = _clean(sections)
     return {"bpm": bpm, "beats": beats[:400], "sections": sections, "notes": notes}
@@ -148,6 +160,24 @@ def _librosa_beats(wav: Path) -> dict:
     except Exception:
         bpm = None
     return {"beats": beats, "bpm": bpm}
+
+
+def _kick_spans(wav: Path) -> list[dict]:
+    import librosa
+    import numpy as np
+
+    y, sr = librosa.load(str(wav), sr=22050, mono=True)
+    hop = 512
+    spec = np.abs(librosa.stft(y, hop_length=hop))
+    freqs = librosa.fft_frequencies(sr=sr)
+    band = spec[freqs < 140].mean(axis=0)
+    env = librosa.util.normalize(band)
+    times = librosa.onset.onset_detect(onset_envelope=env, sr=sr, hop_length=hop, units="time")
+    spans = _half_time_spans([float(t) for t in times], min_len=5.0)
+    for s in spans:
+        s["source"] = "kick"
+        s["role"] = "breakdown"
+    return spans
 
 
 def _half_time_spans(beats: list[float], min_len: float = 6.0) -> list[dict]:
