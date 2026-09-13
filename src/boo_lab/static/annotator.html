@@ -20,6 +20,7 @@
     .filters button { padding:4px 8px; font-size:12px; }
     .filters button.on { border-color:var(--riff); color:var(--riff); }
     #q { width:calc(100% - 32px); margin:0 16px 8px; padding:6px 8px; background:#111; color:var(--text); border:1px solid var(--line); }
+    .alb { padding:12px 16px 4px; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--riff); }
     .t { padding:10px 16px; cursor:pointer; border-left:3px solid transparent; }
     .t:hover,.t.on { background:#1d1d20; }
     .t.on { border-left-color:var(--break); }
@@ -314,18 +315,23 @@ fetch("/api/tracks").then(r=>r.json()).then(d=>{
 function renderList(){
   const box=document.getElementById("list"); box.innerHTML="";
   const q=(listQ||"").toLowerCase();
-  tracks.forEach((t,i)=>{
+  let last="";
+  tracks.forEach((t)=>{
     if(listFilter==="gp" && !t.has_gp) return;
     if(listFilter==="none" && t.has_gp) return;
     const hay=((t.track||"")+" "+(t.album||"")).toLowerCase();
     if(q && hay.indexOf(q)<0) return;
+    const alb=t.album||"unknown";
+    if(alb!==last){
+      const h=document.createElement("div"); h.className="alb"; h.textContent=alb; box.appendChild(h); last=alb;
+    }
     const d=document.createElement("div");
-    d.className="t"+(i===trackId?" on":"");
+    d.className="t"+(tracks[trackId]===t?" on":"");
     const gpClass=t.gp_partial?"part":(t.has_gp?"ok":"");
     const kind=(t.gp_kind||"").toUpperCase();
     const gpWord=!t.has_gp?"no tab":(t.gp_partial?"partial "+kind:kind);
-    d.innerHTML="<span>"+(t.track||"")+"</span><span class='meta'><span class='dot "+(t.has_flac?"ok":"")+"'></span>flac <span class='dot "+gpClass+"'></span>"+gpWord+" · "+(t.album||"")+"</span>";
-    d.onclick=()=>select(i); box.appendChild(d);
+    d.innerHTML="<span>"+(t.track||"")+"</span><span class='meta'><span class='dot "+(t.has_flac?"ok":"")+"'></span>flac <span class='dot "+gpClass+"'></span>"+gpWord+"</span>";
+    d.onclick=()=>select(tracks.indexOf(t)); box.appendChild(d);
   });
 }
 document.getElementById("q").oninput=e=>{ listQ=e.target.value; renderList(); };

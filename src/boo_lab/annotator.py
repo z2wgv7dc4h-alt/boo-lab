@@ -86,6 +86,16 @@ def create_app(lab_root: Path, flac_root: Path | None, gp_root: Path | None) -> 
                     flac_ok = Path(fp).exists()
                 except Exception:
                     flac_ok = False
+            if not flac_ok and flac_root and flac_root.exists() and key:
+                try:
+                    for p in flac_root.rglob("*"):
+                        if p.suffix.lower() in {".flac", ".wav"} and _norm_name(p.stem) == key:
+                            r["flac_path"] = str(p)
+                            fp = str(p)
+                            flac_ok = True
+                            break
+                except Exception:
+                    pass
             out.append(
                 {
                     "id": i,
@@ -99,6 +109,7 @@ def create_app(lab_root: Path, flac_root: Path | None, gp_root: Path | None) -> 
                     "gp_kind": (gp5.suffix.lower().lstrip(".") if gp5 else ""),
                 }
             )
+        out.sort(key=lambda t: ((t.get("album") or ""), t.get("track") or ""))
         return out
 
     @app.get("/", response_class=HTMLResponse)
