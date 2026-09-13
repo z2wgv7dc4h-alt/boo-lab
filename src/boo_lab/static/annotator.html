@@ -80,7 +80,7 @@
     <li><b>Solo</b> / <b>Chill</b> / <b>Pulse</b> / <b>Outro</b></li>
   </ul>
   <h4>Guess</h4>
-  <p>GP5 markers first. Then librosa beats on the mix, or on a Demucs drums stem if you already rendered one next to the FLAC.</p>
+  <p>Guess = GP5 markers + Demucs drums (once per song, cached) + librosa half-time drafts. Change Role if it is wrong.</p>
 </aside>
 <div class="app">
   <aside>
@@ -302,7 +302,7 @@ function dump(){
 }
 function estimate(){
   if(regs.length && !confirm("Replace current boxes with Guess?")) return;
-  showErr("guessing…");
+  showErr("Guess: first time Demucs can take a few minutes. Next time is cached.");
   fetch("/api/estimate/"+tracks[trackId].id).then(async r=>{
     const txt=await r.text();
     let x; try{ x=JSON.parse(txt); }catch(e){ throw txt.slice(0,200); }

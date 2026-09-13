@@ -52,7 +52,12 @@ def _prefer_gp5(gp: Path | None, track: str) -> Path | None:
     return None
 
 
-def estimate_hybrid(flac: Path | None, gp: Path | None, track: str = "") -> dict:
+def estimate_hybrid(
+    flac: Path | None,
+    gp: Path | None,
+    track: str = "",
+    cache: Path | None = None,
+) -> dict:
     notes: list[str] = []
     sections: list[dict] = []
     bpm = None
@@ -83,9 +88,19 @@ def estimate_hybrid(flac: Path | None, gp: Path | None, track: str = "") -> dict
         notes.append("no tab")
 
     if flac and Path(flac).exists():
-        src = _drum_stem(Path(flac)) or Path(flac)
-        if src != Path(flac):
-            notes.append("drums " + src.name)
+        src = Path(flac)
+        if cache:
+            from .stems import ensure_drums
+
+            drum, why = ensure_drums(Path(flac), cache)
+            notes.append(why)
+            if drum:
+                src = drum
+        else:
+            drum = _drum_stem(Path(flac))
+            if drum:
+                src = drum
+                notes.append("drums " + drum.name)
         try:
             m = _librosa_beats(src)
             beats = m.get("beats") or []

@@ -53,11 +53,10 @@ SETUP-STUDIO.bat can fight pip (setuptools 84 vs madmom). Prefer the commands ab
 ## Guess
 
 1. GP5 markers under `gp-tabs\gp5`
-2. librosa beat track on the mix, or `stems/<name>.drums.wav` if Demucs already ran
-3. Half-time IOI stretches become Breakdown drafts
+2. Demucs drums stem on first Guess (`work/stems/`, cached)
+3. librosa half-time on that stem → Breakdown drafts
 
-Waveform is wavesurfer.js 7 + regions. No madmom. Optional: `pip install librosa soundfile`.
-Optional drums stem: `demucs --two-stems=drums song.flac` then copy drums wav to `stems\`.
+`INSTALL-STEMS.bat` once. Waveform is wavesurfer.js 7. No madmom.
 
 ## ML later
 

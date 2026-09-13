@@ -131,6 +131,7 @@ def create_app(lab_root: Path, flac_root: Path | None, gp_root: Path | None) -> 
             Path(flac) if flac else None,
             Path(gp) if gp else None,
             track=rows[track_id].get("track") or "",
+            cache=lab_root / "work" / "stems",
         )
         return payload
 
