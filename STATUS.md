@@ -52,7 +52,12 @@ SETUP-STUDIO.bat can fight pip (setuptools 84 vs madmom). Prefer the commands ab
 
 ## Guess
 
-`guess.py` only opens `.gp5` under `gp-tabs\gp5` (name match). No markers → no GP boxes. Audio Guess (madmom/allin1) is optional and broken on this Py3.12 venv (pkg_resources, collections.MutableSequence, np.float/np.int, basestring). Do not block labelling on it.
+1. GP5 markers under `gp-tabs\gp5`
+2. librosa beat track on the mix, or `stems/<name>.drums.wav` if Demucs already ran
+3. Half-time IOI stretches become Breakdown drafts
+
+Waveform is wavesurfer.js 7 + regions. No madmom. Optional: `pip install librosa soundfile`.
+Optional drums stem: `demucs --two-stems=drums song.flac` then copy drums wav to `stems\`.
 
 ## ML later
 

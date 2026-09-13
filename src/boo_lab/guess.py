@@ -83,59 +83,55 @@ def estimate_hybrid(flac: Path | None, gp: Path | None, track: str = "") -> dict
         notes.append("no tab")
 
     if flac and Path(flac).exists():
+        src = _drum_stem(Path(flac)) or Path(flac)
+        if src != Path(flac):
+            notes.append("drums " + src.name)
         try:
-            m = _madmom_beats(Path(flac))
+            m = _librosa_beats(src)
             beats = m.get("beats") or []
             if m.get("bpm"):
                 bpm = m["bpm"]
             ht = _half_time_spans(beats)
             sections.extend(ht)
             if ht:
-                notes.append("madmom half-time x%s" % len(ht))
+                notes.append("librosa half-time x%s" % len(ht))
             else:
-                notes.append("madmom beats, no half-time stretch")
+                notes.append("librosa beats, no half-time")
         except ImportError:
-            notes.append("pip install madmom")
+            notes.append("pip install librosa soundfile")
         except Exception as e:
-            notes.append("madmom: %s" % e)
-
-        if not sections:
-            try:
-                from .structure import run_allin1, segments_from_allin1
-
-                raw = run_allin1(Path(flac))
-                bpm = raw.get("bpm") or bpm
-                for s in segments_from_allin1(raw):
-                    sections.append(
-                        {
-                            "role": s.get("role") or "verse",
-                            "start": float(s["start"]),
-                            "end": float(s["end"]),
-                            "source": "allin1",
-                        }
-                    )
-                notes.append("allin1 changes")
-            except ImportError:
-                notes.append("allin1 not installed")
-            except Exception as e:
-                notes.append("allin1: %s" % e)
+            notes.append("librosa: %s" % e)
 
     sections = _clean(sections)
     return {"bpm": bpm, "beats": beats[:400], "sections": sections, "notes": notes}
 
 
-def _madmom_beats(flac: Path) -> dict:
-    from madmom.features.beats import DBNBeatTrackingProcessor, RNNBeatProcessor
+def _drum_stem(flac: Path) -> Path | None:
+    stem = flac.stem
+    parent = flac.parent
+    cands = [
+        parent / "stems" / (stem + ".wav"),
+        parent / "stems" / (stem + ".drums.wav"),
+        parent / "stems" / "drums.wav",
+        parent / (stem + ".drums.wav"),
+    ]
+    for c in cands:
+        if c.exists():
+            return c
+    return None
 
-    act = RNNBeatProcessor()(str(flac))
-    beats = list(map(float, DBNBeatTrackingProcessor(fps=100)(act)))
-    bpm = None
-    if len(beats) > 8:
-        gaps = [b - a for a, b in zip(beats, beats[1:]) if b > a]
-        if gaps:
-            mid = sorted(gaps)[len(gaps) // 2]
-            if mid > 0:
-                bpm = 60.0 / mid
+
+def _librosa_beats(wav: Path) -> dict:
+    import librosa
+
+    y, sr = librosa.load(str(wav), sr=22050, mono=True)
+    tempo, frames = librosa.beat.beat_track(y=y, sr=sr)
+    beats = [float(t) for t in librosa.frames_to_time(frames, sr=sr)]
+    bpm = float(tempo) if hasattr(tempo, "__float__") else None
+    try:
+        bpm = float(tempo)
+    except Exception:
+        bpm = None
     return {"beats": beats, "bpm": bpm}
 
 

@@ -17,7 +17,9 @@ Or `SETUP-STUDIO.bat` / `START.bat`. Ctrl+F5 after every HTML change. Kill the o
 
 ## Keys
 
-Space play. Pin buttons add an 8s box at the playhead. S save. N next green. Slider seeks.
+Space play. Click the wave to seek. Drag regions. S save. N next green.
+
+Guess extras: `pip install librosa soundfile`
 
 Green = GP5. Gold = partial tab. Grey = no tab.
 
