@@ -27,6 +27,7 @@
     header.now { display:flex; justify-content:space-between; align-items:baseline; gap:12px; }
     header.now h2 { margin:0; font-size:22px; font-weight:600; }
     header.now span { color:var(--mute); font-size:13px; }
+    .workhead { position:sticky; top:0; z-index:6; background:var(--bg); padding-bottom:4px; }
     .lane-lab { color:var(--mute); font-size:11px; letter-spacing:.08em; text-transform:uppercase; margin:10px 0 4px; }
     #wave, #drums { width:100%; height:96px; background:#101012; border:1px solid var(--line); }
     #tabwrap { margin:14px 0 8px; background:#101012; border:1px solid var(--line); min-height:120px; overflow:auto; max-height:280px; }
@@ -51,7 +52,9 @@
     input { width:6em; }
     select { width:9em; }
     tr.on td { background:#1d1d22; }
-    .err { color:var(--break); font-size:13px; min-height:18px; }
+    .err { color:var(--mute); font-size:13px; min-height:18px; }
+    .err.bad { color:var(--break); }
+    button:disabled { opacity:.45; cursor:wait; }
     .foot { color:var(--mute); font-size:12px; margin-top:auto; }
     .drawer {
       position:fixed; top:0; right:0; width:min(380px,92vw); height:100%;
@@ -89,43 +92,45 @@
 <div class="app">
   <aside>
     <h1>boo-lab</h1>
-    <p>Green = GP5. Gold = partial. Slider is gone — click the wave.</p>
+    <p>Green GP5 · gold partial · grey none. Click mix to seek.</p>
     <div id="list"></div>
   </aside>
   <main>
-    <header class="now">
-      <h2 id="title">…</h2>
-      <span id="sub"></span>
-    </header>
-    <div class="lane-lab">mix</div>
+    <div class="workhead">
+      <header class="now">
+        <h2 id="title">…</h2>
+        <span id="sub"></span>
+      </header>
+      <div class="transport">
+        <button type="button" id="btnPlay">Play</button>
+        <span class="time" id="clock">0:00 / 0:00</span>
+        <button type="button" id="btnEst">Guess</button>
+        <button type="button" id="btnSave">Save</button>
+        <button type="button" id="btnDump">Download JSON</button>
+        <button type="button" id="btnNext">Next with tab</button>
+        <button type="button" id="btnPlayBox">Play box</button>
+        <button type="button" id="btnUndo">Undo</button>
+        <button type="button" id="btnHow">How</button>
+      </div>
+      <div class="pins">
+        <button type="button" class="intro" data-role="intro">Intro</button>
+        <button type="button" class="build" data-role="build">Build</button>
+        <button type="button" class="riff" data-role="verse">Riff</button>
+        <button type="button" class="hook" data-role="chorus">Hook</button>
+        <button type="button" class="break" data-role="breakdown">Breakdown</button>
+        <button type="button" class="solo" data-role="solo">Solo</button>
+        <button type="button" class="chill" data-role="chill">Chill</button>
+        <button type="button" class="pulse" data-role="pulse">Pulse</button>
+        <button type="button" class="outro" data-role="outro">Outro</button>
+      </div>
+      <div class="err" id="err">Space play · 1 riff · 2 hook · 3 breakdown · S save · click mix to seek</div>
+    </div>
+    <div class="lane-lab">mix — drag boxes, click empty to seek</div>
     <div id="wave"></div>
-    <div class="lane-lab">drums (after first Guess)</div>
+    <div class="lane-lab">drums — empty until first Guess on this song</div>
     <div id="drums"></div>
-    <div class="lane-lab">tab (GP5 or GP7 via AlphaTab)</div>
-    <div id="tabwrap"><div class="empty" id="tabmsg">loading tab…</div></div>
-    <div class="transport">
-      <button type="button" id="btnPlay">Play</button>
-      <span class="time" id="clock">0:00 / 0:00</span>
-      <button type="button" id="btnEst">Guess</button>
-      <button type="button" id="btnSave">Save</button>
-      <button type="button" id="btnDump">Download JSON</button>
-      <button type="button" id="btnNext">Next with tab</button>
-      <button type="button" id="btnPlayBox">Play box</button>
-      <button type="button" id="btnUndo">Undo</button>
-      <button type="button" id="btnHow">Instructions</button>
-    </div>
-    <div class="pins">
-      <button type="button" class="intro" data-role="intro">Intro</button>
-      <button type="button" class="build" data-role="build">Build</button>
-      <button type="button" class="riff" data-role="verse">Riff</button>
-      <button type="button" class="hook" data-role="chorus">Hook</button>
-      <button type="button" class="break" data-role="breakdown">Breakdown</button>
-      <button type="button" class="solo" data-role="solo">Solo</button>
-      <button type="button" class="chill" data-role="chill">Chill</button>
-      <button type="button" class="pulse" data-role="pulse">Pulse</button>
-      <button type="button" class="outro" data-role="outro">Outro</button>
-    </div>
-    <div class="err" id="err"></div>
+    <div class="lane-lab">tab</div>
+    <div id="tabwrap"><div class="empty" id="tabmsg">tab loads with the song</div></div>
     <table>
       <thead><tr><th>region</th><th>start</th><th>end</th><th></th></tr></thead>
       <tbody id="rows"></tbody>
@@ -141,7 +146,11 @@ let tracks=[], trackId=0, regs=[], sel=-1, undo=[];
 let ws=null, drumsWs=null, regionsPlug=null, lock=false, tabApi=null;
 
 function fmt(t){ t=Math.max(0,+t||0); return Math.floor(t/60)+":"+String(Math.floor(t%60)).padStart(2,"0"); }
-function showErr(m){ document.getElementById("err").textContent=m||""; }
+function showErr(m, bad){
+  const el=document.getElementById("err");
+  el.textContent=m||"Space play · 1 riff · 2 hook · 3 breakdown · S save · click mix to seek";
+  el.classList.toggle("bad", !!bad);
+}
 function openHow(on){
   document.getElementById("howto").classList.toggle("open", on);
   document.getElementById("scrim").classList.toggle("on", on);
@@ -211,10 +220,11 @@ function makeWave(url){
   });
   ws.on("timeupdate", t=>{
     document.getElementById("clock").textContent=fmt(t)+" / "+fmt(ws.getDuration()||0);
+    if(drumsWs) try{ drumsWs.setTime(t); }catch(e){}
   });
   ws.on("play",()=>document.getElementById("btnPlay").textContent="Pause");
   ws.on("pause",()=>document.getElementById("btnPlay").textContent="Play");
-  regionsPlug.on("region-updated",()=>{ if(lock) return; pullRegions(); table(); });
+  regionsPlug.on("region-updated",()=>{ if(lock) return; pullRegions(); });
   regionsPlug.on("region-clicked",(reg, ev)=>{
     ev.stopPropagation();
     const i=parseInt(String(reg.id).replace("r",""),10);
@@ -224,7 +234,7 @@ function makeWave(url){
 
 function loadDrums(id){
   if(drumsWs){ try{ drumsWs.destroy(); }catch(e){} drumsWs=null; }
-  fetch("/api/drums/"+id, {method:"HEAD"}).then(r=>{
+  fetch("/api/drums/"+id).then(r=>{
     if(!r.ok) return;
     drumsWs=WaveSurfer.create({
       container:"#drums",
@@ -275,10 +285,10 @@ function toggle(){ if(!ws) return; ws.playPause(); }
 fetch("/api/tracks").then(r=>r.json()).then(d=>{
   tracks=d.tracks||[];
   renderList();
-  if(!tracks.length){ showErr("no tracks in map.csv"); return; }
+  if(!tracks.length){ showErr("no tracks in map.csv", true); return; }
   const first=tracks.findIndex(t=>t.has_flac);
   select(first>=0?first:0);
-}).catch(e=>showErr("tracks failed: "+e));
+}).catch(e=>showErr("tracks failed: "+e, true));
 
 function renderList(){
   const box=document.getElementById("list"); box.innerHTML="";
@@ -362,7 +372,9 @@ function dump(){
 }
 function estimate(){
   if(regs.length && !confirm("Replace current boxes with Guess?")) return;
-  showErr("Guess: first time Demucs can take a few minutes. Next time is cached.");
+  const btn=document.getElementById("btnEst");
+  btn.disabled=true;
+  showErr("Guess running — first time Demucs can take a few minutes. Leave this tab open.");
   fetch("/api/estimate/"+tracks[trackId].id).then(async r=>{
     const txt=await r.text();
     let x; try{ x=JSON.parse(txt); }catch(e){ throw txt.slice(0,200); }
@@ -372,7 +384,7 @@ function estimate(){
     loadDrums(tracks[trackId].id);
     document.getElementById("sub").textContent=(x.sections||[]).length+" guessed";
     showErr((x.notes||[]).join(" · "));
-  }).catch(e=>showErr("guess: "+e));
+  }).catch(e=>showErr("guess: "+e, true)).finally(()=>{ document.getElementById("btnEst").disabled=false; });
 }
 function save(){
   if(!regs.length){ showErr("no regions to save"); return; }
@@ -384,9 +396,9 @@ function save(){
     const txt=await r.text();
     let x; try{ x=JSON.parse(txt); }catch(e){ throw txt.slice(0,200); }
     if(!r.ok) throw (typeof x.detail==="string"?x.detail:JSON.stringify(x.detail||x)).slice(0,240);
-    showErr("");
-    document.getElementById("sub").textContent="saved "+x.saved+" to data/sections.jsonl";
-  }).catch(e=>showErr("save failed: "+e));
+    showErr("saved "+x.saved+" → data/sections.jsonl");
+    document.getElementById("sub").textContent="saved "+x.saved;
+  }).catch(e=>showErr("save failed: "+e, true));
 }
 function nextGreen(){
   for(let i=trackId+1;i<tracks.length;i++) if(tracks[i].has_flac&&tracks[i].has_gp){ select(i); return; }
