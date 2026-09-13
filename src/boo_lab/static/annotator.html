@@ -32,8 +32,9 @@
     header.now h2 { margin:0; font-size:22px; font-weight:600; }
     header.now span { color:var(--mute); font-size:13px; }
     .workhead { position:sticky; top:0; z-index:6; background:var(--bg); padding-bottom:4px; }
-    .lane-lab { color:var(--mute); font-size:11px; letter-spacing:.08em; text-transform:uppercase; margin:10px 0 4px; }
-    #wave, #drums { width:100%; height:96px; background:#101012; border:1px solid var(--line); }
+    .lane { margin:10px 0 14px; }
+    .lane-lab { color:var(--mute); font-size:11px; letter-spacing:.08em; text-transform:uppercase; margin:0 0 4px; background:var(--bg); }
+    #wave, #drums { width:100%; height:112px; min-height:112px; background:#101012; border:1px solid var(--line); overflow:hidden; position:relative; }
     #tabwrap { margin:14px 0 8px; background:#101012; border:1px solid var(--line); min-height:120px; overflow:auto; max-height:280px; }
     #tabwrap .empty { color:var(--mute); padding:16px; font-size:13px; }
     .transport, .pins { display:flex; align-items:center; gap:8px; margin:8px 0 12px; flex-wrap:wrap; }
@@ -135,12 +136,18 @@
       </div>
       <div class="err" id="err">Space play · 1 riff · 2 hook · 3 breakdown · S save · click mix to seek</div>
     </div>
-    <div class="lane-lab">mix — drag boxes, click empty to seek</div>
-    <div id="wave"></div>
-    <div class="lane-lab">drums — empty until first Guess on this song</div>
-    <div id="drums"></div>
-    <div class="lane-lab">tab</div>
-    <div id="tabwrap"><div class="empty" id="tabmsg">tab loads with the song</div></div>
+    <div class="lane">
+      <div class="lane-lab">mix — drag boxes, click empty to seek</div>
+      <div id="wave"></div>
+    </div>
+    <div class="lane">
+      <div class="lane-lab">drums — empty until first Guess</div>
+      <div id="drums"></div>
+    </div>
+    <div class="lane">
+      <div class="lane-lab">tab</div>
+      <div id="tabwrap"><div class="empty" id="tabmsg">tab loads with the song</div></div>
+    </div>
     <table>
       <thead><tr><th>region</th><th>start</th><th>end</th><th></th></tr></thead>
       <tbody id="rows"></tbody>
@@ -214,7 +221,7 @@ function makeWave(url){
   ws=WaveSurfer.create({
     container:"#wave",
     url:url,
-    height:128,
+    height:110,
     waveColor:"#6a6864",
     progressColor:"#c4a35a",
     cursorColor:"#f2f0ec",
